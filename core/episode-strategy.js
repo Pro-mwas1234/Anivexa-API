@@ -234,7 +234,7 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
 
   const ctx = { media, anizip, jikanEps, maxPages: undefined };
 
-  const [manga, reanime, anikoto, animegg, anineko, anidbapp, dhive, animenosub, anizone, anibd, senshi] = await Promise.all([
+  const [manga, reanime, anikoto, animegg, anineko, anidbapp, dhive, animenosub, anizone, anibd, senshi, kaa] = await Promise.all([
     safe("allmanga",   () => withCache(`epv:manga:${anilistId}`,      status, () => mangaEpisodes(anilistId, ctx))),
     safe("reanime",    () => withCache(`epv:reanime:${anilistId}`,    status, () => reanimeEpisodes(anilistId, ctx))),
     safe("anikoto",    () => withCache(`epv:anikoto:${anilistId}`,    status, () => anikotoEpisodes(anilistId, ctx))),
