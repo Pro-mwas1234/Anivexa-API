@@ -17,6 +17,7 @@ const execFileAsync = promisify(execFile);
 const BASE = "https://anidb.app";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 const COOKIE_JAR = "/tmp/anidbapp_cookies.txt";
+const PROXY = "https://anidb-proxy.shawnmwask1234.workers.dev";
 
 const NAV_HEADERS = [
   "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -43,6 +44,13 @@ const XHR_HEADERS = [
   "X-Requested-With: XMLHttpRequest",
 ];
 
+async function proxyFetch(url, referer) {
+  const proxyUrl = `${PROXY}?url=${encodeURIComponent(url)}${referer ? `&ref=${encodeURIComponent(referer)}` : ""}`;
+  const res = await fetch(proxyUrl, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url} via proxy`);
+  return res.text();
+}
+
 async function curlFetch(url, headers, extraArgs = []) {
   const args = [
     "-s",
@@ -55,16 +63,22 @@ async function curlFetch(url, headers, extraArgs = []) {
     ...extraArgs,
     url,
   ];
-  const { stdout } = await execFileAsync("curl", args, { maxBuffer: 8 * 1024 * 1024 });
-  const sep = stdout.lastIndexOf("\n__STATUS:");
-  const status = sep >= 0 ? Number(stdout.slice(sep + 10)) : 0;
-  const body = sep >= 0 ? stdout.slice(0, sep) : stdout;
-  if (status < 200 || status >= 300) {
-    const err = new Error(`HTTP ${status} fetching ${url}`);
-    err.rawBody = body;
-    throw err;
+  try {
+    const { stdout } = await execFileAsync("curl", args, { maxBuffer: 8 * 1024 * 1024 });
+    const sep = stdout.lastIndexOf("\n__STATUS:");
+    const status = sep >= 0 ? Number(stdout.slice(sep + 10)) : 0;
+    const body = sep >= 0 ? stdout.slice(0, sep) : stdout;
+    if (status < 200 || status >= 300) {
+      // Try proxy fallback on HTTP errors
+      const referer = headers.find(h => h.startsWith("Referer:"))?.slice(9).trim();
+      return proxyFetch(url, referer);
+    }
+    return body;
+  } catch {
+    // curl not available or failed — fall back to proxy
+    const referer = headers.find(h => h.startsWith("Referer:"))?.slice(9).trim();
+    return proxyFetch(url, referer);
   }
-  return body;
 }
 
 async function fetchAnidbHtml(url, referer) {
